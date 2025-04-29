@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Merged Code: Squares + True Focus + Typing Animation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: auto;
+        background: transparent;
+      }
+
+      #root {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        min-height: 100vh;
+        z-index: -1;
+      }
+      .squares-canvas {
+        display: block;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .content {
+        position: relative;
+        z-index: 1;
+        box-sizing: border-box;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        padding: calc(100 / 1440 * 100vw) calc(150 / 1440 * 100vw);
+        background: transparent;
+        color: #fff;
+        font-family: "Helvetica Neue", sans-serif;
+        border-top: 2px solid #252525;
+        border-bottom: 2px solid #252525;
+      }
+
+      .content-inner {
+        transform: translateY(-60px);
+      }
+
+      .focus-container {
+        position: relative;
+        display: flex;
+        gap: 1em;
+        flex-wrap: wrap;
+        padding: 1em;
+      }
+      .focus-word {
+        position: relative;
+        font-size: 3rem;
+        font-weight: 900;
+        color: #fff;
+        cursor: pointer;
+        transition: filter 0.3s ease, color 0.3s ease;
+      }
+      .focus-word:not(.active) {
+        filter: blur(8px);
+      }
+      .focus-word.manual:hover {
+        filter: blur(0px);
+      }
+      .focus-frame {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        box-sizing: content-box;
+        border: 2px solid var(--border-color, #F5AE3D);
+        filter: drop-shadow(0px 0px 4px var(--border-color, #F5AE3D));
+        transition: all 0.5s ease;
+      }
+      .corner {
+        position: absolute;
+        width: 1rem;
+        height: 1rem;
+        border: 3px solid var(--border-color, #F5AE3D);
+        filter: drop-shadow(0px 0px 4px var(--border-color, #F5AE3D));
+        border-radius: 3px;
+      }
+      .top-left {
+        top: -10px;
+        left: -10px;
+        border-right: none;
+        border-bottom: none;
+      }
+      .top-right {
+        top: -10px;
+        right: -10px;
+        border-left: none;
+        border-bottom: none;
+      }
+      .bottom-left {
+        bottom: -10px;
+        left: -10px;
+        border-right: none;
+        border-top: none;
+      }
+      .bottom-right {
+        bottom: -10px;
+        right: -10px;
+        border-left: none;
+        border-top: none;
+      }
+
+      #typewriter-container {
+        margin: 0;
+        font-family: Helvetica, sans-serif;
+        font-size: 6rem;
+        color: #fff;
+        font-weight: 700;
+      }
+      #cursor {
+        animation: blink 1s infinite;
+      }
+      @keyframes blink {
+        0%   { opacity: 0; }
+        35%  { opacity: 1; }
+        100% { opacity: 0; }
+      }
+
+      @media (max-width: 850px) {
+        .focus-word {
+          font-size: 2.4rem !important;
+        }
+        #typewriter-container {
+          font-size: 5rem !important;
+        }
+      }
+      @media (max-width: 450px) {
+        .focus-word {
+          font-size: 1.5rem !important;
+        }
+        #typewriter-container {
+          font-size: 3.5rem !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Squares 背景 -->
+    <div id="root"></div>
+
+    <!-- 前景内容 -->
+    <div class="content">
+      <div class="content-inner">
+        <!-- True Focus 区域 -->
+        <div id="true-focus-container" class="focus-container"></div>
+        <div style="height:24px;"></div>
+        <!-- Typing 动画区域 -->
+        <div id="typewriter-container">
+          <span id="text"></span><span id="cursor">|</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Squares 纯 JS 版本 -->
+    <script>
+      const config = {
+        direction: "diagonal",
+        speed: 0.3,
+        squareSize: 40,
+        borderColor: "#252525"
+      };
+
+      const canvas = document.createElement("canvas");
+      canvas.className = "squares-canvas";
+      document.getElementById("root").appendChild(canvas);
+      const ctx = canvas.getContext("2d");
+
+      let canvasSize = { width: 0, height: 0 };
+      let gridOffset = { x: 0, y: 0 };
+
+      function updateCanvasSize() {
+        canvasSize.width = document.documentElement.scrollWidth;
+        canvasSize.height = document.documentElement.scrollHeight;
+        canvas.width = canvasSize.width;
+        canvas.height = canvasSize.height;
+      }
+      window.addEventListener("resize", updateCanvasSize);
+      updateCanvasSize();
+
+      function drawGrid() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const { squareSize, borderColor } = config;
+        const startX = Math.floor(gridOffset.x / squareSize) * squareSize;
+        const startY = Math.floor(gridOffset.y / squareSize) * squareSize;
+
+        for (let x = startX; x < canvas.width + squareSize; x += squareSize) {
+          for (let y = startY; y < canvas.height + squareSize; y += squareSize) {
+            const squareX = x - (gridOffset.x % squareSize);
+            const squareY = y - (gridOffset.y % squareSize);
+            ctx.strokeStyle = borderColor;
+            ctx.strokeRect(squareX, squareY, squareSize, squareSize);
+          }
+        }
+
+        const gradient = ctx.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          0,
+          canvas.width / 2,
+          canvas.height / 2,
+          Math.sqrt(canvas.width ** 2 + canvas.height ** 2) / 2
+        );
+        gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0.6)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      function animate() {
+        const { speed, squareSize, direction } = config;
+        const s = Math.max(speed, 0.1);
+        switch (direction) {
+          case "right":
+            gridOffset.x = (gridOffset.x - s + squareSize) % squareSize;
+            break;
+          case "left":
+            gridOffset.x = (gridOffset.x + s + squareSize) % squareSize;
+            break;
+          case "up":
+            gridOffset.y = (gridOffset.y + s + squareSize) % squareSize;
+            break;
+          case "down":
+            gridOffset.y = (gridOffset.y - s + squareSize) % squareSize;
+            break;
+          case "diagonal":
+            gridOffset.x = (gridOffset.x - s + squareSize) % squareSize;
+            gridOffset.y = (gridOffset.y - s + squareSize) % squareSize;
+            break;
+        }
+        drawGrid();
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    </script>
+
+    <!-- True Focus 脚本（保持不变） -->
+    <script>
+      (function(){
+        var sentence = "Hello 你好";
+        var manualMode = true;
+        var blurAmount = 8;
+        var borderColor = "#F5AE3D";
+        var animationDuration = 1000;
+        var autoInterval = 2000;
+
+        var container = document.getElementById("true-focus-container");
+        container.style.setProperty("--border-color", borderColor);
+
+        var currentIndex = 0;
+        var isHovering = false;
+        var wordElements = [];
+        var words = sentence.split(" ");
+
+        words.forEach(function(word, index) {
+          var span = document.createElement("span");
+          span.className = "focus-word" + (manualMode ? " manual" : "");
+          span.textContent = word;
+          if(index === 0) {
+            span.classList.add("active");
+            span.style.filter = "blur(0px)";
+          } else {
+            span.style.filter = "blur(" + blurAmount + "px)";
+          }
+          container.appendChild(span);
+          wordElements.push(span);
+
+          if(manualMode) {
+            span.addEventListener("mouseenter", function(){
+              isHovering = true;
+              setActiveIndex(index);
+            });
+            span.addEventListener("mouseleave", function(){
+              isHovering = false;
+            });
+          }
+        });
+
+        var focusFrame = document.createElement("div");
+        focusFrame.className = "focus-frame";
+        focusFrame.style.transition = "all " + (animationDuration/1000) + "s ease";
+        container.appendChild(focusFrame);
+
+        ["top-left","top-right","bottom-left","bottom-right"].forEach(function(cls){
+          var corner = document.createElement("span");
+          corner.className = "corner " + cls;
+          focusFrame.appendChild(corner);
+        });
+
+        function updateFocusFrame() {
+          var activeWord = wordElements[currentIndex];
+          if(!activeWord) return;
+          var containerRect = container.getBoundingClientRect();
+          var wordRect = activeWord.getBoundingClientRect();
+          var offsetLeft = wordRect.left - containerRect.left;
+          var offsetTop = wordRect.top - containerRect.top;
+          focusFrame.style.width = wordRect.width + "px";
+          focusFrame.style.height = wordRect.height + "px";
+          focusFrame.style.transform = "translate(" + offsetLeft + "px, " + offsetTop + "px)";
+          focusFrame.style.opacity = "1";
+        }
+
+        function setActiveIndex(newIndex){
+          wordElements[currentIndex].classList.remove("active");
+          wordElements[currentIndex].style.filter = "blur(" + blurAmount + "px)";
+          currentIndex = newIndex;
+          wordElements[currentIndex].classList.add("active");
+          wordElements[currentIndex].style.filter = "blur(0px)";
+          updateFocusFrame();
+        }
+
+        function nextWord(){
+          if(isHovering) return;
+          var newIndex = (currentIndex + 1) % words.length;
+          setActiveIndex(newIndex);
+        }
+
+        window.addEventListener("load", function(){
+          updateFocusFrame();
+        });
+        setInterval(nextWord, autoInterval);
+      })();
+    </script>
+
+    <!-- Typing 动画 脚本（保持不变） -->
+    <script>
+      var textElement = document.getElementById("text");
+      var cursorElement = document.getElementById("cursor");
+
+      var phases = [
+        { text: "I'm Xiaochuan.", keep: "I'm" },
+        { text: " a UX/UI designer.", keep: "I'm a" },
+        { text: " graphic designer.", keep: "I'm a" },
+        { text: "n artist.", keep: "I'm a" },
+        { text: " gamer.", keep: "" }
+      ];
+
+      var fullText = "";
+      var phaseIndex = 0;
+
+      var deletingSpeed = 60;
+      var pauseDuration = 1500;
+      var interPhaseDelay = 500;
+
+      function getTypingDelay(phaseText, charIndex) {
+        if (phaseText === " a UX/UI designer." && (charIndex === 3 || charIndex === 4)) {
+          return 500;
+        }
+        var baseDelay = Math.floor(Math.random() * (180 - 120 + 1)) + 120;
+        if (Math.random() < 0.15) {
+          baseDelay += Math.floor(Math.random() * (300 - 200 + 1)) + 200;
+        }
+        return baseDelay;
+      }
+
+      function typePhase(phase, index) {
+        if (index < phase.text.length) {
+          fullText += phase.text.charAt(index);
+          textElement.textContent = fullText;
+          setTimeout(function(){
+            typePhase(phase, index + 1);
+          }, getTypingDelay(phase.text, index));
+        } else {
+          setTimeout(function(){
+            deletePhase(phase);
+          }, pauseDuration);
+        }
+      }
+
+      function deletePhase(phase) {
+        var target = phase.keep;
+        if (fullText.length > target.length) {
+          fullText = fullText.slice(0, -1);
+          textElement.textContent = fullText;
+          setTimeout(function(){
+            deletePhase(phase);
+          }, deletingSpeed);
+        } else {
+          var delay = (target === "" ? 3000 : interPhaseDelay);
+          setTimeout(function(){
+            phaseIndex = (phaseIndex + 1) % phases.length;
+            typePhase(phases[phaseIndex], 0);
+          }, delay);
+        }
+      }
+
+      setTimeout(function(){
+        phaseIndex = 0;
+        typePhase(phases[phaseIndex], 0);
+      }, 3000);
+    </script>
+  </body>
+</html>
